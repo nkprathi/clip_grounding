@@ -127,6 +127,41 @@ run.finish()
 
 Runs and logged metrics are viewable on the W&B dashboard at `https://wandb.ai/<entity>/clip-grounding`.
 
+## Data
+
+Experiments in `src/clip_similarity/` use a 300-image subset of the **COCO val2017** split, filtered to cluttered "tabletop" scenes (bottles, cups, books, laptops, etc.) with at least two matching objects per image.
+
+### 1. Download COCO val2017
+
+```bash
+mkdir -p data/raw && cd data/raw
+curl -fL -C - -O http://images.cocodataset.org/zips/val2017.zip
+curl -fL -C - -O http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+unzip -o -q val2017.zip
+unzip -o -q annotations_trainval2017.zip
+cd ../..
+```
+
+Only `annotations/instances_val2017.json` and `annotations/captions_val2017.json` are needed; the other annotation files (train captions/instances, person keypoints) can be deleted to save space, along with both `.zip` files once extraction succeeds:
+
+```bash
+cd data/raw
+rm -f annotations/captions_train2017.json annotations/instances_train2017.json \
+      annotations/person_keypoints_train2017.json annotations/person_keypoints_val2017.json
+rm -f val2017.zip annotations_trainval2017.zip
+cd ../..
+```
+
+Final size: ~810 MB (`val2017/` images + the two kept annotation files). `data/` is gitignored, so this is a local step, not something committed.
+
+### 2. Build the subset manifest
+
+```bash
+python3 src/clip_similarity/build_subset.py
+```
+
+This reads the two annotation files, keeps images with ≥2 tabletop-category objects, deterministically samples 300 of them (seed 42), and writes `data/subset_manifest.json` — a list of `{image_id, file_name, caption, objects}` entries used by the `TabletopDataset` loader in `dataset.py`.
+
 ## Running the Smoke Test
 
 A minimal smoke test verifies that the model loads correctly and produces a sensible similarity score for a matching image-text pair:
@@ -144,9 +179,19 @@ Cosine similarity: 0.28-0.35
 
 Cosine similarity scores in the 0.25-0.35 range are typical for a genuinely matching image-text pair under CLIP; the model does not tend to produce very high similarity scores even for correct matches.
 
+## Similarity-Matrix Sanity Check
+
+```bash
+python3 src/clip_similarity/sanity_check.py
+```
+
+Encodes one batch (16 images, 16 captions) from the subset, computes the 16x16 cosine similarity matrix, prints diagonal vs. off-diagonal means and image-to-text / text-to-image top-1 accuracy, and saves a heatmap to `outputs/similarity_matrix.png`.
+
+`src/clip_similarity/encode.py` runs the same encoder over the *entire* 300-image subset and caches the resulting image embeddings to `outputs/image_embeddings.npz` (~0.6 MB), so later text queries only need one text-encoder pass plus a matrix multiply against this cache.
+
 ## Status
 
-This repository currently covers the CLIP implementation phase of the VLM curriculum: environment setup, model loading, and basic image-text similarity scoring. Upcoming work includes zero-shot classification and image-text retrieval.
+This repository currently covers the CLIP implementation phase of the VLM curriculum: environment setup, model loading, a COCO-derived tabletop subset, image-text similarity scoring, and a cached image-embedding pipeline. Upcoming work includes zero-shot classification and image-text retrieval.
 
 ## References
 
