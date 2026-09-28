@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
+import wandb
 from transformers import CLIPModel, CLIPProcessor
 
 from dataset import make_loader
@@ -21,6 +22,13 @@ MODEL_ID = "openai/clip-vit-base-patch32"
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 
 torch.manual_seed(42)
+
+run = wandb.init(
+    entity="pratheeksha-naresh-thi",
+    project="clip-grounding",
+    job_type="sanity_check",
+    config={"model": MODEL_ID, "device": device, "batch_size": 16, "seed": 42},
+)
 
 processor = CLIPProcessor.from_pretrained(MODEL_ID)
 model = CLIPModel.from_pretrained(MODEL_ID).to(device).eval()
@@ -44,8 +52,17 @@ off = cos[~torch.eye(B, dtype=bool, device=cos.device)]
 print("matrix shape      :", cos.shape)            # (16, 16)
 print("mean diagonal     :", diag.mean().item())   # ~0.28-0.33 typical
 print("mean off-diagonal :", off.mean().item())    # ~0.10-0.18 typical
-print("i->t top-1 acc     :", (cos.argmax(dim=1) == torch.arange(B, device=cos.device)).float().mean().item())
-print("t->i top-1 acc     :", (cos.argmax(dim=0) == torch.arange(B, device=cos.device)).float().mean().item())
+i2t_acc = (cos.argmax(dim=1) == torch.arange(B, device=cos.device)).float().mean().item()
+t2i_acc = (cos.argmax(dim=0) == torch.arange(B, device=cos.device)).float().mean().item()
+print("i->t top-1 acc     :", i2t_acc)
+print("t->i top-1 acc     :", t2i_acc)
+
+run.log({
+    "mean_diagonal": diag.mean().item(),
+    "mean_off_diagonal": off.mean().item(),
+    "i2t_top1_acc": i2t_acc,
+    "t2i_top1_acc": t2i_acc,
+})
 
 cos_np = cos.cpu().numpy()
 
@@ -64,3 +81,6 @@ fig.colorbar(im, ax=ax, label="cosine similarity")
 fig.tight_layout()
 fig.savefig("outputs/similarity_matrix.png", dpi=150)
 print("saved outputs/similarity_matrix.png")
+
+run.log({"similarity_matrix": wandb.Image("outputs/similarity_matrix.png")})
+run.finish()

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import torch
+import wandb
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
@@ -9,6 +10,13 @@ MANIFEST_PATH = "/Users/prathi/work/clip_grounding/data/subset_manifest.json"
 IMAGES_DIR = "/Users/prathi/work/clip_grounding/data/raw/val2017"
 BACKBONES = ["openai/clip-vit-base-patch32", "openai/clip-vit-base-patch16"]
 device = "mps" if torch.backends.mps.is_available() else "cpu"
+
+run = wandb.init(
+    entity="pratheeksha-naresh-thi",
+    project="clip-grounding",
+    job_type="zero_shot_objects",
+    config={"backbones": BACKBONES, "device": device, "dataset": "COCO_subset_cropped_objects"},
+)
 
 # --- 1. Inspect manifest format ------------------------------------------------
 manifest = json.loads(Path(MANIFEST_PATH).read_text())
@@ -101,6 +109,7 @@ for backbone in BACKBONES:
         # --- 8. Record result for this (backbone, template) combination ---
         results[(backbone, template_name)] = acc
         print(f"8. [{backbone} | {template_name}] top-1 acc: {acc:.4f}")
+        run.log({f"{backbone}/{template_name}_top1_acc": acc})
 
 print("\nFinal 2x2 results:")
 for (backbone, template_name), acc in results.items():
@@ -136,3 +145,6 @@ for backbone in BACKBONES:
         acc = results[(backbone, template_name)]
         row += f"{acc:>{col_width}.4f}"
     print(row)
+
+run.log({"num_crops": len(crops), "num_classes": len(clean_classes)})
+run.finish()

@@ -1,4 +1,5 @@
 import torch
+import wandb
 from transformers import CLIPModel, CLIPProcessor
 from dataset import make_loader
 
@@ -6,6 +7,13 @@ MODEL_ID = "openai/clip-vit-base-patch32"
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 
 torch.manual_seed(42)
+
+run = wandb.init(
+    entity="pratheeksha-naresh-thi",
+    project="clip-grounding",
+    job_type="encode",
+    config={"model": MODEL_ID, "device": device, "batch_size": 16, "seed": 42},
+)
 
 processor = CLIPProcessor.from_pretrained(MODEL_ID)
 model = CLIPModel.from_pretrained(MODEL_ID).to(device).eval()
@@ -35,3 +43,9 @@ np.savez("outputs/image_embeddings.npz",
           embeddings=all_img_emb.numpy().astype("float32"),
           image_ids=all_ids.numpy())
 print("saved outputs/image_embeddings.npz")
+
+run.log({
+    "num_embeddings": all_img_emb.shape[0],
+    "embedding_dim": all_img_emb.shape[1],
+})
+run.finish()

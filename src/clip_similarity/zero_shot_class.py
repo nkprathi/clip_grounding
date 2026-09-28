@@ -1,9 +1,17 @@
 import torch
+import wandb
 from torchvision.datasets import OxfordIIITPet
 from transformers import CLIPModel, CLIPProcessor
 
 MODEL_ID = "openai/clip-vit-base-patch32"
 device = "mps" if torch.backends.mps.is_available() else "cpu"
+
+run = wandb.init(
+    entity="pratheeksha-naresh-thi",
+    project="clip-grounding",
+    job_type="zero_shot_class",
+    config={"model": MODEL_ID, "device": device, "dataset": "OxfordIIITPet"},
+)
 
 processor = CLIPProcessor.from_pretrained(MODEL_ID)
 model = CLIPModel.from_pretrained(MODEL_ID).to(device).eval()
@@ -74,3 +82,11 @@ sims_b = img_emb_n @ txt_emb_b_n.T
 preds_b = sims_b.argmax(dim=1).cpu()
 acc_b = (preds_b == labels_idx_t).float().mean().item()
 print("4. Condition B top-1 acc:", acc_b)
+
+run.log({
+    "condition_A_bare_top1_acc": acc_a,
+    "condition_B_template_top1_acc": acc_b,
+    "num_images": img_emb.shape[0],
+    "num_classes": len(clean_classes),
+})
+run.finish()
