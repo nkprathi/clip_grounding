@@ -189,6 +189,17 @@ Encodes one batch (16 images, 16 captions) from the subset, computes the 16x16 c
 
 `src/clip_similarity/encode.py` runs the same encoder over the *entire* 300-image subset and caches the resulting image embeddings to `outputs/image_embeddings.npz` (~0.6 MB), so later text queries only need one text-encoder pass plus a matrix multiply against this cache.
 
+## Zero-Shot Classification
+
+```bash
+python3 src/clip_similarity/zero_shot_class.py    # Oxford-IIIT Pet (3669 test images, 37 breeds)
+python3 src/clip_similarity/zero_shot_objects.py  # cropped COCO objects, 2 backbones x 2 prompt templates
+```
+
+Both scripts compare a bare class name (e.g. `"beagle"`) against a captioning-style template (e.g. `"a photo of a beagle, a type of pet."`) as the zero-shot text prompt, holding the images and model fixed. The templated prompt reads closer to CLIP's web-caption training data and typically scores higher top-1 accuracy. `zero_shot_objects.py` extends this to a 2x2 grid across two vision backbones (ViT-B/32, ViT-B/16) to separate the effect of prompt phrasing from model capacity.
+
+**Key takeaway:** CLIP's zero-shot "classifier" is just cosine similarity between image and text embeddings, so prompt wording is a real, measurable lever on accuracy, not just anecdotal advice — and it can be isolated from other levers (like backbone choice) via controlled A/B comparisons.
+
 ## Status
 
 This repository currently covers the CLIP implementation phase of the VLM curriculum: environment setup, model loading, a COCO-derived tabletop subset, image-text similarity scoring, and a cached image-embedding pipeline. Upcoming work includes zero-shot classification and image-text retrieval.

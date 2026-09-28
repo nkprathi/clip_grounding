@@ -47,11 +47,19 @@ print("mean off-diagonal :", off.mean().item())    # ~0.10-0.18 typical
 print("i->t top-1 acc     :", (cos.argmax(dim=1) == torch.arange(B, device=cos.device)).float().mean().item())
 print("t->i top-1 acc     :", (cos.argmax(dim=0) == torch.arange(B, device=cos.device)).float().mean().item())
 
+cos_np = cos.cpu().numpy()
+
 fig, ax = plt.subplots(figsize=(6, 5))
-im = ax.imshow(cos.cpu().numpy(), cmap="viridis", vmin=-1, vmax=1)
+# scale to the batch's actual range, not the theoretical [-1, 1] bound —
+# CLIP cosine similarities live in a narrow band (~0.05-0.35 here), so a
+# fixed [-1, 1] scale crushes the diagonal-vs-off-diagonal contrast
+im = ax.imshow(cos_np, cmap="viridis", vmin=cos_np.min(), vmax=cos_np.max())
 ax.set_title("Image-text cosine similarity (one batch)")
 ax.set_xlabel("caption index")
 ax.set_ylabel("image index")
+for i in range(B):
+    ax.text(i, i, f"{cos_np[i, i]:.2f}", ha="center", va="center",
+             color="white", fontsize=7, fontweight="bold")
 fig.colorbar(im, ax=ax, label="cosine similarity")
 fig.tight_layout()
 fig.savefig("outputs/similarity_matrix.png", dpi=150)
